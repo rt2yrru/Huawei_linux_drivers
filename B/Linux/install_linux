@@ -1,0 +1,166 @@
+#!/bin/bash
+
+#VERSION=1.0.0.5
+
+if [ ! `whoami` = "root" ]
+then
+    echo "You must run the process by root."
+    read COMMAND
+    exit
+fi
+echo "Note: If failed to connect xserver,please try running \"Linux\Install\" again."
+#CURRENT_PATH=`cd $(dirname $0);pwd`
+CURRENT_PATH=`echo $0|sed 's/\install_linux$//'`
+#FILENAME=${0/*\//}
+CONFIG_FILE_PATH="/etc/datacard_config"
+TMP_FILE_PATH="/tmp/MobilePartner_AutoRun"
+LOG_PATH="/tmp/MobilePartner_autoinstall_log"
+SYSCONFIG_KEY="VALUE="
+SYSCONFIG_PATH="/SysConfig.dat"
+SYSCONFIG_ISO_PATH="/Linux${SYSCONFIG_PATH}"
+SYSCONFIG_EQAL_VER="C_Equal_Version="
+INSTALL="/Linux/install"
+INSTALL_PATH="${TMP_FILE_PATH}/Linux/install"
+DATACARD_VERIFY="/Linux/DataCard_Verify"
+MOBILE_HOME_PATH=`grep path "${CONFIG_FILE_PATH}" | awk -F '=' '{print $2}'`
+MOBILE_EXEC_PATH=`grep Exec "${CONFIG_FILE_PATH}" | awk -F '=' '{print $2}'`
+
+echo "Current path = ${CURRENT_PATH}" > ${LOG_PATH}
+
+install_exit()
+{
+    echo "Press any key to exit."
+    read COMMAND
+    exit
+}
+
+check_ISO()
+{       
+    echo "Begin verify CD..." | tee -a ${LOG_PATH}
+
+    if [ ! -f "${CURRENT_PATH}""${DATACARD_VERIFY}" ]
+    then
+    echo -e "The DataCard_Verify file don't exsit!" | tee -a ${LOG_PATH}
+    install_exit
+    fi
+
+    if [ ! -f "${CURRENT_PATH}""${SYSCONFIG_ISO_PATH}" ]
+    then
+    echo -e "The SysConfig.dat file don't exsit!" | tee -a ${LOG_PATH}
+    install_exit
+    fi
+
+    if [ ! -d "${TMP_FILE_PATH}" ]
+    then
+    mkdir "${TMP_FILE_PATH}"
+    fi
+
+    if [ ! -d "${TMP_FILE_PATH}" ]
+    then
+    echo -e "\nCan't create the work path : ${TMP_FILE_PATH}" | tee -a ${LOG_PATH}
+    install_exit
+    fi
+    
+    echo "Verify CD succeed!" | tee -a ${LOG_PATH}
+}
+
+backup_ISO()
+{
+    echo "Begin copy install file..." | tee -a ${LOG_PATH}
+    
+    cp -f -R "${CURRENT_PATH}"/Linux "${TMP_FILE_PATH}"/Linux
+    
+    chmod a+x -R "${TMP_FILE_PATH}"/Linux
+    
+    echo "Copy install file succeed!" | tee -a ${LOG_PATH}
+}
+
+install_dashboard()
+{
+    echo "install..." | tee -a ${LOG_PATH}
+    if which xterm;
+    then
+        echo "Run xterm and begin to install" | tee -a ${LOG_PATH}
+        TERMINAL=`which xterm`
+        ${TERMINAL} '-e' ${INSTALL_PATH}
+        echo "${INSTALL_PATH} Exit install and remove temporary files" | tee -a ${LOG_PATH}
+        install_exit
+    fi
+    
+    if which gnome-terminal;
+    then
+        echo "Run gnome-terminal and begin to install" | tee -a ${LOG_PATH}
+        TERMINAL=`which gnome-terminal`
+        ${TERMINAL} '-e' ${INSTALL_PATH}
+        echo "${INSTALL_PATH} Exit install and remove temporary files" | tee -a ${LOG_PATH}
+        install_exit
+    fi
+    
+    if which konsole;
+    then
+        echo "Run konsole and begin to install" | tee -a ${LOG_PATH}
+        TERMINAL=`which konsole`
+        ${TERMINAL} '-e' ${INSTALL_PATH}
+        echo "${INSTALL_PATH} Exit install and remove temporary files" | tee -a ${LOG_PATH}
+        install_exit
+    fi
+}
+
+verify_version()
+{
+    echo "Begin verify the versin of dashboard..." | tee -a ${LOG_PATH}
+    
+     #CURRENT_VER=`grep VALUE "${MOBILE_HOME_PATH}${SYSCONFIG_PATH}" | awk -F '=' '{print $2}'`
+    CURRENT_VER=`grep FullVersion "${CONFIG_FILE_PATH}" | awk -F '=' '{print $2}'`
+    TARGET_VER=`grep VALUE "${TMP_FILE_PATH}${SYSCONFIG_ISO_PATH}" | awk -F '=' '{print $2}'`
+    EQAL_VER=`grep C_Equal_Version "${TMP_FILE_PATH}${SYSCONFIG_ISO_PATH}" | awk -F '=' '{print $2}'`
+
+    echo "Current version : ${CURRENT_VER};Target version : ${TARGET_VER};Eqal version : ${EQAL_VER}" | tee -a ${LOG_PATH}
+
+    "${TMP_FILE_PATH}""${DATACARD_VERIFY}" "${CURRENT_VER}" "${TARGET_VER}" "${EQAL_VER}" | tee -a ${LOG_PATH}
+
+    if grep "Install!" ${LOG_PATH};
+    then
+        install_dashboard
+    fi
+
+    if grep "Run!" ${LOG_PATH};
+    then
+    	echo "Your Dashboard is the newest one." | tee -a ${LOG_PATH}
+        RUNNING_DASHBOARD_NUM=`ps h -C java o'%a' | grep "MobilePartner.jar" | grep -vc "grep"`
+        if [ ${RUNNING_DASHBOARD_NUM} -gt 0 ]
+        then
+            echo "It is running." | tee -a ${LOG_PATH}
+            install_exit
+        else
+            echo "Run it now." | tee -a ${LOG_PATH}
+            nohup "${MOBILE_EXEC_PATH}"
+            install_exit
+        fi
+    fi
+}
+
+rm -f -R "${TMP_FILE_PATH}"
+
+check_ISO
+backup_ISO
+
+if [ -e "${CONFIG_FILE_PATH}" ]
+then
+    MOBILE_HOME_PATH=`grep path "$CONFIG_FILE_PATH" | awk -F '=' '{print $2}'`
+    if [ -d "${MOBILE_HOME_PATH}" ]
+    then
+        echo "It has installed a dashboard." | tee -a ${LOG_PATH}
+        verify_version
+        install_exit
+    else
+        echo "It didn't install a dashboard.And install it" | tee -a ${LOG_PATH}
+        install_dashboard
+        install_exit
+    fi
+    exit
+else
+    echo "It didn't install a dashboard.And install it" | tee -a ${LOG_PATH}
+    install_dashboard
+    install_exit
+fi

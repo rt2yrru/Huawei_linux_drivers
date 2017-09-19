@@ -1,0 +1,56 @@
+[ModemName]
+ModemName_1=HUAWEI Mobile Connect - 3G Modem
+ModemName_2=MCCI(r) USB Function (CDMA Modem) Drivers (emch) (for evaluation only) (VCOMM)
+
+[Diag]
+DiagWaitOutTime=5000
+
+[ModuleCtrl]
+LoadedModule = 6
+
+[UI Customization]
+System Setting Modification=N
+
+[System]
+FileVersion=1
+MajorVersion=20
+VRVersion=16	
+BuildVersion=001
+DevelopVersion=09
+SPVersion=00
+CustomizeVersion=03
+
+[SPLASH]
+SHOW_PROMPT=NO
+PROMPT_MESSAGE=PromptInfo.exe
+LANGPATH=PromptInfo
+LANGFILE=English.dat
+
+[PNPCTRL]
+EXEC_REWIND=YES
+DEFAULT_TIMEOUT=10
+WIN2000_TIMEOUT=10
+
+[EHIDS_PRODUCT_VERSION]
+COMMENT=
+RUN_INSTALL_APP=YES
+RUN_CLIENT_APP=YES
+L_REG_PATH=SOFTWARE\Huawei technologies\Mobile Partner
+APP_FILE_NAME=Mobile Partner.exe
+APP_INSTALL_PATH=Mobile Partner
+VALUE=16.001.09.00.03
+ProductCardType=1
+
+[VERSION_CONTROL]
+Operator=Huawei
+C_Equal_Version=
+
+[NEW_DEVICE_PID]
+Number=
+Device1=
+Device2=
+
+[SPECIAL_DEVICE_PID]
+Number=
+Device1=
+Device2=

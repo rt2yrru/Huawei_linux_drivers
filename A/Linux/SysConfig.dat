@@ -1,0 +1,87 @@
+[Install]
+DefDir=Movistar 3.5G
+AppTitle=Movistar 3.5G
+AppName=Movistar 3.5G.exe
+Publisher=Huawei Technologies Co.,Ltd
+URLInfoAbout=http://www.huawei.com
+HelpLink=http://mobile.huawei.com
+
+[DRIVER]
+WLAN=0
+
+[FinishPage]
+run=
+runtext=
+
+[shortcut]
+dest1=Movistar 3.5G.exe
+name1=Movistar 3.5G
+dest2=uninst.exe
+name2=Uninstall
+usermanual=User Manual
+usermanualfile=
+
+[regedit]
+TCPWindowSize=129940
+reboot=false
+
+[customize]
+operator=C211
+simtype=SIM/USIM
+uimtype=UIM
+FindDevice=false
+LaunchDashboard=false
+
+[language]
+name1=SpanishArg
+name2=English
+
+[System]
+FileVersion=1
+VRVersion=21
+VVersion=200
+RVersion=001
+BuildVersion=003
+DebugVersion=25
+SPVersion=00
+CustomizeVersion=211
+
+[SPLASH]
+SHOW_PROMPT=NO
+PROMPT_MESSAGE=PromptInfo.exe
+LANGPATH=PromptInfo
+LANGFILE=English.dat
+
+[PNPCTRL]
+EXEC_REWIND=YES
+DEFAULT_TIMEOUT=10
+WIN2000_TIMEOUT=10
+
+[EHIDS_PRODUCT_VERSION]
+COMMENT=
+RUN_INSTALL_APP=YES
+RUN_CLIENT_APP=YES
+L_REG_PATH=SOFTWARE\Huawei technologies\Movistar 3.5G
+APP_FILE_NAME=Movistar 3.5G.exe
+APP_INSTALL_PATH=Movistar 3.5G
+VALUE=21.003.25.00.211
+
+[SD_INFORMATION]
+SD_DETECT=YES
+ANTI_VIRUS_REG_PATH=SOFTWARE\Symantec\SPBBC
+ANTI_VIRUS_FILE_PATH=\Norton\NIS081550.exe
+REMIND_SENTENCE=Remind you to install antivirus software?
+
+[SD_THIRDPARTY_SETUP]
+SD_THIRD_SETUP=YES
+SD_THIRD_FILE_PATH=PUBLIC
+SD_THIRD_FILE_NAME=HuaweiProtectorSuite.dmg
+SD_RUN_THIRD_FILE_ONCE=YES
+
+[VIRCDROM_INFORMATION]
+ANTI_VIRUS_TREND_EXE=\AntiVirus\TmSync.exe
+
+[APP_PATH]
+VALUE=/Applications/Mobile Partner.app
+RUN_PROCESS_DLG=YES
+

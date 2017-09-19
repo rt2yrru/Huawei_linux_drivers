@@ -1,0 +1,825 @@
+#!/bin/bash
+#
+###############################################################################
+#                                                                             #
+#              华为终端数据卡linux 后台注册软件                               #
+#              版权属于华为技术有限公司，不得盗用，违者必究                   #
+#              Huawei linux MobilePartner licensed software                   #
+#              Copyright (c) 2007-2008 by Huawei Tech. Corp. Ltd..            #
+#              作者：张乾春 2008.7.8                                          #
+#                                                                             #
+###############################################################################
+#
+
+BAKCURRENTPATH=`pwd`
+SOFTWARENAME="Mobile Partner"
+INSTALLWORKPATH="$(dirname "$0")"
+CONFIG_FILE="/etc/datacard_config"
+HOOK_FILE="/etc/pm/sleep.d"
+USERDATA_PATH="/usr/local/hw_mobile_userdata"
+PPPD_PATH="/usr/local/hw_pppd"
+
+FULLVERSION=16.001.09.00.03
+
+SOFTWARENAMEINDESKTOP=$SOFTWARENAME
+SOFTWARENAME=$(echo $SOFTWARENAME | sed s\#\ \#_\#g)
+
+INSTALLPATH="/usr/local/Mobile_Partner"
+TEMPWORKPATH="/tmp/${SOFTWARENAME}_$$"
+TEMPFILE="${SOFTWARENAME}_install_$PPID"
+
+#Language String
+LANGUAGESTRING[0]="zh"
+LANGUAGESTRING[1]="en_US"
+LANGUAGECODE[0]=0
+LANGUAGECODE[1]=1
+
+
+LANGCODE=${LANGUAGECODE[1]}
+i=0
+while [ ".${LANGUAGESTRING[${i}]}" != "." ]
+do
+    if [ ${LANGUAGESTRING[${i}]} = "${LANG}" ]
+    then
+        LANGCODE=${LANGUAGECODE[${i}]}
+        break
+    fi
+    i=`expr ${i} + 1`
+done
+unset i
+
+
+LYouMustBeRoot[0]="您必须以root用户运行本安装程序"
+LYouMustBeRoot[1]="You must run the process by root"
+
+LPlsInputInstallPath[0]="请输入安装的绝对路径"
+LPlsInputInstallPath[1]="Please input the absolute path for install"
+
+LInstallPath[0]="安装路径"
+LInstallPath[1]="install path"
+
+LIllegal[0]="非法"
+LIllegal[1]="illegal"
+
+LNoFile[0]="找不到文件："
+LNoFile[1]="Can not find file: "
+
+LCanNotCreateDir[0]="无法创建目录"
+LCanNotCreateDir[1]="Can not create dir"
+
+LMobilePartnerInstall[0]="${SOFTWARENAMEINDESKTOP}安装程序"
+LMobilePartnerInstall[1]="${SOFTWARENAMEINDESKTOP} installer"
+
+LJREInstalled[0]="JRE已经安装过了, 要覆盖安装吗"
+LJREInstalled[1]="JRE have installed before, will want to cover with before version"
+
+LJREInstalling[0]="开始安装JRE, 请稍后..."
+LJREInstalling[1]="Installing JRE..."
+
+LJREInstallComplete[0]="已经完成JRE安装"
+LJREInstallComplete[1]="JRE install have completed"
+
+LStartInstallPartner[0]="开始安装后台, 请稍后..."
+LStartInstallPartner[1]="Installing ${SOFTWARENAMEINDESKTOP}..."
+
+LCompleteInstallPartner[0]="已经完成后台安装"
+LCompleteInstallPartner[1]="install have completed, local path is"
+
+LLocalPath[0]="本地安装路径"
+LLocalPath[1]="Local path is"
+
+LOverwriteInstalled[0]="已经安装有后台, 是否覆盖"
+LOverwriteInstalled[1]="The software is exist. Do you want overwrite it"
+
+LInstallJRE[0]="安装JRE"
+LInstallJRE[1]="install JRE"
+
+LInstallMP[0]="安装后台"
+LInstallMP[1]="install ${SOFTWARENAMEINDESKTOP}"
+
+LInstallAll[0]="安装JRE和后台"
+LInstallAll[1]="install JRE and ${SOFTWARENAMEINDESKTOP}"
+
+LQuitInstall[0]="退出"
+LQuitInstall[1]="Exit"
+
+LPlsSelect[0]="请选择："
+LPlsSelect[1]="Please select: "
+
+LYouMustSelect[0]="你必须选择："
+LYouMustSelect[1]="You must select: "
+
+LInstallEnd[0]="结束, 按任意键退出"
+LInstallEnd[1]="Finished, press any key to exit"
+
+LInstallingVersionOlderThenInstalled[0]="警告：正在安装的版本比系统中的版本旧。是否覆盖？"
+LInstallingVersionOlderThenInstalled[1]="WARNING: The installing version is older than installed. Do you want to overwrite it"
+
+LInstallingVersionLaterThenInstalled[0]="系统中存在旧版本。是否升级？"
+LInstallingVersionLaterThenInstalled[1]="There is a older version in your system. Do you want to update it"
+
+LInstalledVersion[0]="已安装版本:"
+LInstalledVersion[1]="Installed version:"
+
+LInstallingVersion[0]="正在安装版本:"
+LInstallingVersion[1]="Installing version:"
+
+LProgramRunning[0]="请先关闭程序再进行卸载。"
+LProgramRunning[1]="Program is running, you need close it before uninstalling."
+
+trap 'kill $BG_PID;echo;exit' 1 2 3 15
+
+#"loading"效果
+dots()
+{
+    stty echo >/dev/null 2>&1
+    while true
+    do
+      echo -e ".\c"
+      sleep 1
+    done
+    stty echo
+    #echo
+}
+
+#旋转光标效果
+rotate()
+{
+    INTERVAL=0.1
+    TCOUNT="0"
+    stty -echo >/dev/null 2>&1
+    while :
+    do
+    TCOUNT=`expr $TCOUNT + 1`
+        case $TCOUNT in
+        "1") echo -e '-'"\b\c"
+        sleep $INTERVAL
+        ;;
+        "2") echo -e '\\'"\b\c"
+        sleep $INTERVAL
+        ;;
+        "3") echo -e '|'"\b\c"
+        sleep $INTERVAL
+        ;;
+        "4") echo -e '/'"\b\c"
+        sleep $INTERVAL
+        ;;
+        *) TCOUNT="0" ;;
+        esac
+    done
+    stty echo
+}
+
+
+# /*yes or no 公共函数, yes返回0, no返回1*/
+yes_or_no()
+{
+    if [ ${#} -ne 2 ]
+    then
+        echo -e "yes_or_or: ${ErrorPara[${LANGCODE}]}"
+        return 1
+    fi
+    if [ "${2}" = "Y" ]
+    then
+        DEFPMPT="([Y]/N):\c "
+        DEFVAL="Y"
+    else
+        DEFPMPT="(Y/[N]):\c "
+        DEFVAL="N"
+    fi
+    echo -e "${1} ${DEFPMPT}"
+    read ANS
+    while [ "${ANS}" != "Y" -a "${ANS}" != "y" -a "${ANS}" != "N" -a "${ANS}" != "n" -a ! -z "${ANS}" ]
+    do
+        echo -e "${1} ${DEFPMPT}"
+        read ANS
+    done
+    : ${ANS:="${DEFVAL}"}
+    if [ "${ANS}" != "Y" -a "${ANS}" != "y" ]
+    then
+        unset ANS
+        return 1
+    fi
+    unset ASN
+    return 0
+}
+
+#检查启动安装脚本的用户是否为root用户
+CheckID()
+{
+    if [ `id | awk '{print $1}'` != "uid=0(root)" ]
+    then
+        echo -e "${LYouMustBeRoot[${LANGCODE}]}"
+        echo -e "\n${LInstallEnd[${LANGCODE}]}"
+        read -n 1
+	clear
+        exit
+    fi
+}
+#检查当前是否有后台正在运行
+CheckRunning()
+{
+    RUNJAR=`ps -ef |grep -v grep |grep MobilePartner.jar | awk '{print $2}'`
+    RUNBIN=`ps -ef |grep -v grep |grep MobilePartner.bin | awk '{print $2}'`
+    if [ "x${RUNJAR}" != "x" ]
+    then
+        echo -e "Program is running, you need close it before installing."
+        read RESP
+        exit
+    fi
+
+    if [ "x${RUNBIN}" != "x" ]
+    then
+        echo -e "Program is running, you need close it before installing."
+        read RESP
+        exit
+    fi
+}
+
+#检查相关文件，在硬盘上建立存放安装文件的临时目录，并拷贝安装文件到该目录
+PreInstall()
+{
+    #检查JRE文件
+#    if [ ! -f "${INSTALLWORKPATH}"/jre-1_5_0_15-linux-i586.bin ]
+#    then
+#        echo -e "${LNoFile[${LANGCODE}]}jre-1_5_0_15-linux-i586.bin"
+#        exit
+#    fi
+    #检查安装包文件
+    if [ ! -f "${INSTALLWORKPATH}"/MobilePartner.tar.gz ]
+    then
+        echo -e "${LNoFile[${LANGCODE}]}MobilePartner.tar.gz"
+        exit
+    fi
+    
+    if [ ! -d "${TEMPWORKPATH}" ]
+    then
+        mkdir ${TEMPWORKPATH}
+    fi
+    if [ ! -d "${TEMPWORKPATH}" ]
+    then
+        echo -e "\n${LCanNotCreateDir[${LANGCODE}]}: ${TEMPWORKPATH}"
+        exit
+    fi
+    
+    #拷贝JRE安装文件
+#    cp -f "${INSTALLWORKPATH}"/jre-1_5_0_15-linux-i586.bin ${TEMPWORKPATH}
+#    chmod a+x ${TEMPWORKPATH}/jre-1_5_0_15-linux-i586.bin
+    
+    #拷贝后台安装文件
+    cp -f "${INSTALLWORKPATH}"/MobilePartner.tar.gz ${TEMPWORKPATH}
+    
+    if [ -f "${INSTALLWORKPATH}"/data.bin ]
+    then
+        cp -f "${INSTALLWORKPATH}"/data.bin ${TEMPWORKPATH}
+    fi
+
+    #拷贝安装脚本到硬盘上
+    cp -f "${INSTALLWORKPATH}"/install ${TEMPWORKPATH}
+    chmod a+x ${TEMPWORKPATH}/install    
+    
+
+    #add by liuzhiqiang... begin
+    if [ -f $CONFIG_FILE ]
+    then
+        #获取版本信息
+        . $CONFIG_FILE
+
+        #获取系统中已经安装的版本号
+        VRVERSIONINSTALLED=`echo $FullVersion | cut -d '.' -f1`
+        BUILDVERSIONINSTALLED=`echo $FullVersion | cut -d '.' -f2`
+        DEVELOPVERSIONINSTALLED=`echo $FullVersion | cut -d '.' -f3`
+        SPVERSIONINSTALLED=`echo $FullVersion | cut -d '.' -f4`
+        CUSTOMIZEVERSIONINSTALLED=`echo $FullVersion | cut -d '.' -f5`
+        
+        #获取正在安装的版本号
+        VRVERSIONINSTALLING=`echo $FULLVERSION | cut -d '.' -f1`
+        BUILDVERSIONINSTALLING=`echo $FULLVERSION | cut -d '.' -f2`
+        DEVELOPVERSIONINSTALLING=`echo $FULLVERSION | cut -d '.' -f3`
+        SPVERSIONINSTALLING=`echo $FULLVERSION | cut -d '.' -f4`
+        CUSTOMIZEVERSIONINSTALLING=`echo $FULLVERSION | cut -d '.' -f5`
+        
+        #打印版本信息
+        echo "${LInstalledVersion[${LANGCODE}]} ${FullVersion}"
+        echo "${LInstallingVersion[${LANGCODE}]} ${FULLVERSION}"
+        
+        #检查已经安装的版本是否更新
+        while [ 1 ]
+        do
+            #比较VR版本号，不相同则提示用户覆盖安装
+            if [ $VRVERSIONINSTALLED -ne $VRVERSIONINSTALLING ]
+            then
+                InstallDifferentVersionPrompt
+                break
+            fi
+            
+            #比较C版本号，不相同则提示用户覆盖安装
+            if [ $CUSTOMIZEVERSIONINSTALLED -ne $CUSTOMIZEVERSIONINSTALLING ]
+            then
+                InstallDifferentVersionPrompt
+                break
+            fi
+            
+            #比较B版本号
+            if [ $BUILDVERSIONINSTALLED -gt $BUILDVERSIONINSTALLING ]
+            then
+                #如果已安装的B版本号较新，则提示用户已经安装了较新的后台版本，是否继续
+                InstallOlderVersionPrompt
+                break
+            elif [ $BUILDVERSIONINSTALLED -lt $BUILDVERSIONINSTALLING ]
+            then
+                #如果已安装的B版本号较老，不需要继续比较D版本和SP版本，直接覆盖安装
+                InstallLaterVersionPrompt
+                break
+            fi 
+            
+            #比较D版本号
+            if [ $DEVELOPVERSIONINSTALLED -gt $DEVELOPVERSIONINSTALLING ]
+            then
+                #如果已安装的D版本号较新，则提示用户已经安装了较新的后台版本，是否继续
+                InstallOlderVersionPrompt
+                break
+            elif [ $DEVELOPVERSIONINSTALLED -lt $DEVELOPVERSIONINSTALLING ]
+            then
+                #如果已安装的D版本号较老，不需要继续比较SP版本，直接覆盖安装
+                InstallLaterVersionPrompt
+                break
+            fi
+            
+            #比较SP版本号
+            if [ $SPVERSIONINSTALLED -gt $SPVERSIONINSTALLING ]
+            then
+                #如果已安装的SP版本号较新，则提示用户已经安装了较新的后台版本，是否继续
+                InstallOlderVersionPrompt
+                break
+            elif [ $SPVERSIONINSTALLED -lt $SPVERSIONINSTALLING ]
+            then
+                #如果已安装的SP版本号较老，直接覆盖安装
+                InstallLaterVersionPrompt
+                break
+            fi
+            
+            #走到这表示所有版本号一致，给出提示是否覆盖
+            InstallSameVersionPrompt
+            break
+        done
+
+        INSTALLPATH=`egrep "^path=" $CONFIG_FILE | awk -F  '=' '{print $2}'`
+        
+    else
+        #输入安装目录
+        echo -e "\n ${LPlsInputInstallPath[${LANGCODE}]}[${INSTALLPATH}]: \c"
+        read ANS
+        : ${ANS:="${INSTALLPATH}"}
+        INSTALLPATH=${ANS}
+        
+        #检查目录的合法性
+        if [[ ${INSTALLPATH} != /* ]]
+        then
+            echo -e "\n${LInstallPath[${LANGCODE}]} ${LIllegal[${LANGCODE}]}"
+            DisplayEndMsg
+            exit
+        fi
+        
+        #使安装目录合理化
+        if [  -d "${INSTALLPATH}" ]
+        then
+            INSTALLPATH=${INSTALLPATH}/${SOFTWARENAME}
+        fi
+    fi
+    
+    #创建安装目录
+    if [ ! -d "${INSTALLPATH}" ]
+    then
+        mkdir ${INSTALLPATH}
+    fi
+    if [ ! -d "${INSTALLPATH}" ]
+    then
+        echo -e "\n${LCanNotCreateDir[${LANGCODE}]}: ${INSTALLPATH}"
+        DisplayEndMsg
+        exit
+    fi
+
+    echo -e "\n${LLocalPath[${LANGCODE}]}: ${INSTALLPATH}"
+}
+
+InstallLaterVersionPrompt()
+{
+    #新版本，提示是否升级	
+    yes_or_no "\n${LInstallingVersionLaterThenInstalled[${LANGCODE}]}?" Y
+    if [ ${?} -ne 0 ]
+    then
+        DisplayEndMsg
+        exit
+    fi
+}
+
+InstallSameVersionPrompt()
+{
+    #如果以前已经安装过后台则提示是否覆盖	
+    yes_or_no "\n${LOverwriteInstalled[${LANGCODE}]}?" Y
+    if [ ${?} -ne 0 ]
+    then
+        DisplayEndMsg
+        exit
+    fi
+}
+
+InstallOlderVersionPrompt()
+{
+    #安装的版本比系统中的版本旧，给出提示
+    yes_or_no "\n${LInstallingVersionOlderThenInstalled[${LANGCODE}]}?" N
+    if [ ${?} -ne 0 ]
+    then
+        DisplayEndMsg
+        exit
+    fi
+}
+
+InstallDifferentVersionPrompt()
+{
+    #如果以前已经安装过后台则提示是否覆盖	
+    yes_or_no "\n${LOverwriteInstalled[${LANGCODE}]}?" Y
+    if [ ${?} -ne 0 ]
+    then
+        DisplayEndMsg
+        exit
+    fi
+}
+
+#安装JRE
+InstallJRE()
+{
+    mkdir -p "${INSTALLPATH}/java"
+    cd "${INSTALLPATH}/java"
+    echo -e -n "\n${LJREInstalling[${LANGCODE}]}"
+    ${TEMPWORKPATH}/jre-1_5_0_15-linux-i586.bin >/dev/null 2>&1 <<!
+Y
+!
+# for jre compatibility
+    sed -i 's/XINERAMA/FAKEEXTN/g' ${INSTALLPATH}/java/jre1.5.0_15/lib/i386/xawt/libmawt.so
+
+    DonePrompt "${LJREInstalling[${LANGCODE}]}"
+
+    #echo -e "\n${LJREInstallComplete[${LANGCODE}]}"
+    
+    return 0
+}
+
+
+#安装后台
+InstallMobilePartner()
+{
+    echo -e -n "\n${LStartInstallPartner[${LANGCODE}]}"
+    
+    #dots &
+    #BG_PID=$!
+    rotate &
+    ROTATE_PID=$!
+    
+    
+    cd "${INSTALLPATH}"
+#在安装路径下解压data.bin
+    if [ -f "${TEMPWORKPATH}"/data.bin ]
+    then
+        tar zxf "${TEMPWORKPATH}"/data.bin >/dev/null 2>&1
+    fi
+#在安装路径下解压缩安装包   
+    tar zxf ${TEMPWORKPATH}/MobilePartner.tar.gz >/dev/null 2>&1
+    chmod -R a+w "${INSTALLPATH}"/userdata
+    chmod -R a+w "${INSTALLPATH}"/config
+    chmod -R a+w "${INSTALLPATH}"/log
+
+#解压二进制执行程序
+    chmod +x ./MobilePartner_distrib
+    ./MobilePartner_distrib -dest ./ >/dev/null   
+
+#将配置文件的WINDOWS换行符去掉
+#    XMLFILELIST=`find  ${INSTALLPATH} -name *.xml`
+#    for XMLFILE in ${XMLFILELIST}
+#    do
+#        sed -i "s/.$//" ${XMLFILE}
+#    done
+
+#安装autorun
+#    chmod +x ./autorun/*
+    
+   # ./autorun/huawei_autostart install >/dev/null 2>&1
+
+
+#运行Ndis驱动模块文件的安装包
+#    chmod +x ./ndis_drivers/*
+#    ./ndis_drivers/ndis_install ${INSTALLPATH}/ndis_drivers >/dev/null  2>&1
+    
+        
+#运行驱动工具安装脚本
+#    chmod +x ./driver/*
+#    ./driver/install ${INSTALLPATH} .bin >/dev/null  2>&1
+    
+
+    
+#copy相关文件到相应目录
+    #拷贝库文件
+#    cp -rf ./lib/librxtxSerial.so ./java/jre1.5.0_15/lib/i386
+#    cp -rf ./lib/libjnotify.so ./java/jre1.5.0_15/lib/i386
+    #拷贝字库配置文件
+    cp -rf ./config/fontconfig/fontconfig.properties ./rt/lib/
+    cp -rf ./config/fontconfig/fontconfig.SuSE.properties ./rt/lib/
+    rm -rf ./config/fontconfig
+
+    #拷贝拨号相关文件
+    chmod a+x ./sbin/*
+    chmod -R a+w ./hw_pppd
+    chmod -R a+x ./hw_pppd
+    cp -rf ./hw_pppd /usr/local/
+    
+    #拷贝用户数据文件夹
+    if [ ! -d ${USERDATA_PATH} ]
+    then
+        mkdir $USERDATA_PATH
+        mkdir ${USERDATA_PATH}/${SOFTWARENAME}
+        cp -rf ./userdata ${USERDATA_PATH}/${SOFTWARENAME}
+        chmod -R a+w ${USERDATA_PATH}
+        chmod -R a+r ${USERDATA_PATH}
+    else
+        #如果存在相同软件名称的用户数据，不覆盖
+        if [ ! -d ${USERDATA_PATH}/${SOFTWARENAME} ]
+        then
+            mkdir ${USERDATA_PATH}/${SOFTWARENAME}
+            cp -rf ./userdata ${USERDATA_PATH}/${SOFTWARENAME}
+            chmod -R a+w ${USERDATA_PATH}
+            chmod -R a+r ${USERDATA_PATH}
+        fi
+    fi
+    
+    #拷贝JRE到UpdateInstall下，用于在线升级
+    #cp -rf "${INSTALLPATH}/java" "${INSTALLPATH}/lib/UpdateInstall"
+    
+    #修改sudoers文件
+    grep -v "MobilePartner.sh" /etc/sudoers >/tmp/${TEMPFILE} 2>&1
+    DELETECOMMENT="delete requiretty for hw_mobile"
+    REQUIRETTY=`grep "${DELETECOMMENT}" /tmp/${TEMPFILE}`
+    if [ "x${REQUIRETTY}" != "x" ]
+    then
+        REQUIRETTY=`echo "${REQUIRETTY}" | awk -F ',' '{printf $2}'` 
+    else
+        REQUIRETTY=`grep "requiretty" /tmp/${TEMPFILE}`
+        if [ "x${REQUIRETTY}" != "x" ]
+        then
+            sed -i "s/${REQUIRETTY}/# ,${REQUIRETTY},${DELETECOMMENT}/g" /tmp/${TEMPFILE} 2>/dev/null
+        fi
+    fi
+    echo -e "ALL ALL=(ALL) NOPASSWD:${INSTALLPATH}/MobilePartner.sh" >> /tmp/${TEMPFILE}
+
+    cp -f /tmp/${TEMPFILE} /etc/sudoers
+    
+
+#编辑并创建桌面启动图标和开始菜单启动图标   
+    sed "s#\${HW_SOFTWARENAME}#${SOFTWARENAMEINDESKTOP}#g" ./MobilePartner.desktop > /tmp/${TEMPFILE} 2>/dev/null
+    sed "s#\${HW_INSTALLPATH}#${INSTALLPATH}#g" /tmp/${TEMPFILE} > ./MobilePartner.desktop 2>/dev/null
+    if [ -d /root/Desktop ]
+    then
+        cp -f ./MobilePartner.desktop /root/Desktop
+        chmod +x /root/Desktop/MobilePartner.desktop
+        
+    else
+        cp -f ./MobilePartner.desktop /root
+        chmod +x /root/MobilePartner.desktop
+    fi  
+    cp -f ./MobilePartner.desktop /usr/share/applications
+    
+#编辑并创建开始菜单卸载图标  
+    sed "s#\${HW_SOFTWARENAME}#${SOFTWARENAMEINDESKTOP}#g" ./UninstallMobilePartner.desktop > /tmp/${TEMPFILE} 2>/dev/null
+    sed "s#\${HW_INSTALLPATH}#${INSTALLPATH}#g" /tmp/${TEMPFILE} > ./UninstallMobilePartner.desktop 2>/dev/null  
+    
+    cp -f ./UninstallMobilePartner.desktop /usr/share/applications
+    
+#编辑并创建运行脚本
+    echo -e "#!/bin/bash" > ./MobilePartner.sh
+
+# for Ubuntu
+    UBUNTURELEASE=`grep Ubuntu /etc/issue 2>&1 | awk -F ' ' '{printf $1}'`
+    if [ "x${UBUNTURELEASE}" = "xUbuntu" ]
+    then
+        if [ -d /usr/share/fonts/truetype/arphic ]
+	then
+            rm -rf /usr/share/fonts/truetype/arphic
+	fi
+	mkdir -p /usr/share/fonts/truetype/arphic
+        ln -s /usr/share/fonts/truetype/arphic ${INSTALLPATH}/rt/lib/fonts/fallback
+        echo -e "export AWT_TOOLKIT=\"MToolkit\"" >> ./MobilePartner.sh
+ #   else
+  #      sed -i "s/export AWT_TOOLKIT=\"MToolkit\"//g" ./lib/UpdateInstall/install
+    fi
+    
+# for Debian
+    DEBIANRELEASE=`grep Debian /etc/issue 2>&1 | awk -F ' ' '{printf $1}'`
+    if [ "x${DEBIANRELEASE}" = "xDebian" ]
+    then
+        if [ -d /usr/share/fonts/truetype/arphic ]
+	then
+            rm -rf /usr/share/fonts/truetype/arphic
+	fi
+	mkdir -p /usr/share/fonts/truetype/arphic
+        ln -s /usr/share/fonts/truetype/arphic ${INSTALLPATH}/rt/lib/fonts/fallback
+    fi
+
+# for OpenSuSE
+    if [ -f /etc/SuSE-release ]
+    then
+        if [ -d /usr/share/fonts/truetype ]
+	then
+            rm -rf /usr/share/fonts/truetype
+	fi
+	mkdir -p /usr/share/fonts/truetype
+        ln -s /usr/share/fonts/truetype ${INSTALLPATH}/rt/lib/fonts/fallback
+        echo -e "export DISPLAY=:0" >> ./MobilePartner.sh
+    fi
+    
+#insert hook
+    if [ -d /etc/pm/sleep.d ]
+    then
+        cp -f ${INSTALLPATH}/sbin/66hw_hook /etc/pm/sleep.d
+        chmod +x /etc/pm/sleep.d/66hw_hook
+    fi
+
+# for jre compatibility
+    echo -e "export LIBXCB_ALLOW_SLOPPY_LOCK=1" >> ./MobilePartner.sh
+
+    echo -e "export JAVA_HOME=\"${INSTALLPATH}/java/jre1.5.0_15\"" >> ./MobilePartner.sh
+    echo -e "export CLASSPATH=\"${INSTALLPATH}/java/jre1.5.0_15/lib:.\"" >> ./MobilePartner.sh
+    echo -e "export PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin:$PATH" >> ./MobilePartner.sh
+    echo -e "APPDIR=\"${INSTALLPATH}\"" >> ./MobilePartner.sh
+    echo -e "cd \${APPDIR}" >> ./MobilePartner.sh
+#    echo -e "\${APPDIR}/java/jre1.5.0_15/bin/java -Djava.library.path=\${APPDIR}/lib -jar MobilePartner.jar &" >> ./MobilePartner.sh
+    echo -e "\${APPDIR}/MobilePartner.bin &" >> ./MobilePartner.sh
+    chmod +x ./MobilePartner.sh
+    chmod a+x ./MobilePartner
+        
+#编辑并创建卸载脚本
+    sed -i "s/{LYouMustBeRoot}/${LYouMustBeRoot[${LANGCODE}]}/g" ./UninstallMobilePartner
+    sed -i "s/{LInstallEnd}/${LInstallEnd[${LANGCODE}]}/g" ./UninstallMobilePartner
+    sed -i "s/{LProgramRunning}/${LProgramRunning[${LANGCODE}]}/g" ./UninstallMobilePartner
+    sed -i "s#{INSTALLPATH}#${INSTALLPATH}#g" ./UninstallMobilePartner
+    sed -i "s#{HOOK_FILE}#${HOOK_FILE}#g" ./UninstallMobilePartner
+    sed -i "s#{CONFIG_FILE}#${CONFIG_FILE}#g" ./UninstallMobilePartner
+    if [ "x${REQUIRETTY}" != "x" ]
+    then
+        sed -i "s/{REQUIRETTY}/${REQUIRETTY}/g" ./UninstallMobilePartner
+	sed -i "s/{DELETECOMMENT}/${DELETECOMMENT}/g" ./UninstallMobilePartner
+    else
+        grep -v {REQUIRETTY} ./UninstallMobilePartner > /tmp/${TEMPFILE}
+	cp -f /tmp/${TEMPFILE} ./UninstallMobilePartner
+    fi
+    
+    chmod +x ./UninstallMobilePartner    
+    
+    #kill $BG_PID >/dev/null
+    kill $ROTATE_PID >/dev/null    
+       
+    DonePrompt "${LStartInstallPartner[${LANGCODE}]}"
+
+    #echo -e "\n${SOFTWARENAMEINDESKTOP} ${LCompleteInstallPartner[${LANGCODE}]} ${INSTALLPATH}"
+
+    #清除本地文件
+    rm -rf ./userdata
+    rm -rf ./hw_pppd
+    rm -rf ./*.desktop
+
+    rm -f /tmp/${TEMPFILE}
+    rm -rf ${TEMPWORKPATH}
+}
+InstallDriver(){
+echo -e -n "\nInstalling Driver..."
+echo -e -n "\n"
+echo -e -n "\n"
+chmod +x ./driver/*
+./driver/install ${INSTALLPATH} .bin
+#chmod +x ./patch/*
+#./patch/patch_install ${INSTALLPATH}/patch
+}
+
+DonePrompt()
+{
+    LOGCHARNUM=`echo "$1" | wc -m`
+    TERMCHARNUM=`stty size | awk -F ' ' '{printf $2}'`
+    LOGCHARNUM=`expr $TERMCHARNUM - $LOGCHARNUM`
+    echo "[ done ] " | awk '{printf "%"'"$LOGCHARNUM"'"s", $0}'
+    echo -e ""
+}
+
+
+# /*提供选择语言*/
+SelectLanguage()
+{
+    while :
+    do
+        case ${LANGCODE} in
+            0)
+                echo -e "\n\t1. 简体中文"
+                echo -e "\t2. 英文"
+                echo -e "\n\t请选择语言: [1]\c"
+                read RESP
+                : ${RESP:="1"}
+            ;;
+            *)
+                echo -e "\n\t1. Simplified Chinese"
+                echo -e "\t2. English"
+                echo -e "\n\tPlease select Language: [2]\c"
+                read RESP
+                : ${RESP:="2"}
+            ;;
+        esac
+        case ${RESP} in
+            [1,2])
+                LANGCODE=`expr ${RESP} - 1`
+                return ${LANGCODE}
+            ;;
+            *)
+                case ${LANGCODE} in
+                    0)
+                        echo -e - "\n\t你必须选择: 1, 2\n"
+                    ;;
+                    *)
+                        echo -e "\n\tPlease select: 1, 2\n"
+                    ;;
+                esac
+            ;;
+        esac
+    done
+}
+
+# /*显示程序启动时的信息*/
+DisplayStartMsg()
+{
+    clear
+}
+
+# /*显示程序结束时的信息*/
+DisplayEndMsg()
+{
+    cd "${BAKCURRENTPATH}"
+    rm -rf "${TEMPWORKPATH}"
+    echo -e "\n${LInstallEnd[${LANGCODE}]}"
+    read -n 1
+    clear
+}
+
+
+
+GenConfigFile()
+{
+    cd $INSTALLPATH
+    echo "path=$INSTALLPATH"               > $CONFIG_FILE
+    echo "name=MobilePartner"              >> $CONFIG_FILE
+    echo "Exec=$INSTALLPATH/MobilePartner" >> $CONFIG_FILE
+    echo "FullVersion=$FULLVERSION" >> $CONFIG_FILE
+    
+}
+
+
+
+clear
+CheckID
+CheckRunning
+#SelectLanguage
+#luanying add 20090217
+:>"$INSTALLPATH/lib/UpdateInstall/inputLog.txt"
+DisplayStartMsg
+#当让用户选择安装时，如下部分代码到应该放到while循环中
+PreInstall
+#InstallJRE
+InstallMobilePartner
+InstallDriver
+GenConfigFile
+#luanying add 20081229
+echo "Download Programs finished!" > "$INSTALLPATH/lib/UpdateInstall/inputLog.txt"
+DisplayEndMsg
+exit 0
+
+#不让用户选择安装，如下代码无效
+while :
+do
+    echo -e - "***\t\t${LMobilePartnerInstall[${LANGCODE}]}\t\t***\n"
+    echo -e - "${LPlsSelect[${LANGCODE}]}\n"
+    echo -e - "\t1) ${LInstallMP[${LANGCODE}]}"
+    echo -e - "\t0) ${LQuitInstall[${LANGCODE}]}\n"
+    echo -e - "Choice: [0]\c"
+    read RESP
+    : ${RESP:="0"}
+    case ${RESP} in
+        1)
+             PreInstall
+             InstallJRE
+             InstallMobilePartner
+             GenConfigFile
+        ;;
+        0)
+            DisplayEndMsg
+            exit 0
+        ;;
+        *)
+            echo -e - "${LYouMustSelect[${LANGCODE}]}1, 0"
+        ;;
+    esac
+done
