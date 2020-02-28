@@ -8,7 +8,7 @@ I am provinding two of them.
 
 Installing procedures:
 
-make sure you have 
+make sure you have :
 -make
 -gcc
 -g++
