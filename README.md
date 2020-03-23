@@ -1,6 +1,6 @@
-# Huwaei_linux_drivers
+# Huawei_linux_drivers
 
-This are the drivers which worked for my HUWAEI USB modem.
+This are the drivers which worked for my Huawei USB modem.
 
 Hope this is useful for you too.
 
